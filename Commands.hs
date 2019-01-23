@@ -61,13 +61,20 @@ ls _ currPath fs           = do
     return (currPath, fs)
 
 cat :: [FilePath] -> FilePath -> FileSystem -> IO (FilePath, FileSystem)
-cat [] currPath fs = do
+cat [] currPath fs    = do
     readFromStdin
     return (currPath, fs)
 cat [arg] currPath fs = do
-    let (Directory _ lst) = findDir (lastDir currPath) currPath fs
-    text <- readFileData arg lst
-    putStrLn text
+    let hasPath = [] /= filter (== '/') arg
+    if hasPath then do
+        let pathToFile = goBack arg
+        let (Directory _ lst) = findDir pathToFile currPath fs
+        text <- readFileData (lastDir arg) lst
+        putStrLn text
+    else do
+        let (Directory _ lst) = findDir currPath currPath fs
+        text <- readFileData arg lst
+        putStrLn text
     return (currPath, fs)
 cat (">":args) currPath fs = do
     text <- getLine
