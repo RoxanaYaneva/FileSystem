@@ -4,4 +4,5 @@ type FileName = String
 type FileData = String
 type FileSize = Int
 
-data FileSystem = FEmpty | File FileName FileData FileSize | Directory FileName [FileSystem] deriving (Show, Eq)
+data File = FEmpty | OFile FileName FileData FileSize | Directory FileName [File] deriving (Show, Eq)
+newtype FileSystem = FileSystem {root :: File} deriving Show
