@@ -14,9 +14,9 @@ input currPath fs = do
         input newPath newFs
 
 parseCommand :: String -> FilePath -> FileSystem -> IO (FilePath, FileSystem)
-parseCommand cmd cp fs = processCommand (head $ split ' ' cmd) (tail $ split ' ' cmd) cp fs
+parseCommand cmd currPath fs = processCommand (head $ split ' ' cmd) (tail $ split ' ' cmd) currPath fs
 
-processCommand :: String -> [FileName] -> FilePath -> FileSystem -> IO (FilePath, FileSystem)
+processCommand :: String -> [FilePath] -> FilePath -> FileSystem -> IO (FilePath, FileSystem)
 processCommand "pwd" _ currPath fs    = pwd currPath fs
 processCommand "cd" args currPath fs  = cd args currPath fs
 processCommand "ls" args currPath fs  = ls args currPath fs
@@ -27,9 +27,9 @@ processCommand "cat" args currPath fs = cat args currPath fs
 --processCommand "touch" args currPath fs = touch args currPath fs
 
 pwd :: FilePath -> FileSystem -> IO (FilePath, FileSystem)
-pwd currDir fs = do
-    putStrLn currDir
-    return (currDir, fs)
+pwd currPath fs = do
+    putStrLn currPath
+    return (currPath, fs)
 
 cd :: [FilePath] -> FilePath -> FileSystem -> IO (FilePath, FileSystem)
 cd [arg] currPath fs
@@ -38,62 +38,75 @@ cd [arg] currPath fs
         putStrLn $ "cd: " ++ arg ++ ": No such file or directory"
         return (currPath, fs)
     | head arg == '/'                  = return (arg, fs)
-    | otherwise                        = return (currPath ++ arg, fs)
+    | otherwise                        = return (relToAbs currPath arg, fs)
 cd (arg:args) currPath fs = do
     putStrLn "cd: too many arguments"
     return (currPath, fs)
 
-ls :: [FileName] -> FilePath -> FileSystem -> IO (FilePath, FileSystem)
+ls :: [FilePath] -> FilePath -> FileSystem -> IO (FilePath, FileSystem)
 ls [] currPath fs             = do
     let (Directory _ lst) = findDir currPath currPath fs
     showContent lst
     return (currPath, fs)
 ls [arg] currPath fs
     | isValid arg currPath fs = do
-        showContent $ [findDir arg currPath fs] 
+        let (Directory _ lst) = findDir arg currPath fs
+        showContent lst
         return (currPath, fs)   
     | otherwise               = do 
         putStrLn $ "ls: cannot access " ++ arg ++ ": No such file or directory"
         return (currPath, fs)
-ls args currPath fs           = do
+ls _ currPath fs           = do
     putStrLn "ls: too many arguments"
     return (currPath, fs)
 
-cat :: [FileName] -> FilePath -> FileSystem -> IO (FilePath, FileSystem)
+cat :: [FilePath] -> FilePath -> FileSystem -> IO (FilePath, FileSystem)
 cat [] currPath fs = do
     readFromStdin
     return (currPath, fs)
-cat [file] currPath fs = do
+cat [arg] currPath fs = do
     let (Directory _ lst) = findDir (lastDir currPath) currPath fs
-    text <- readFileData file lst
+    text <- readFileData arg lst
     putStrLn text
     return (currPath, fs)
-cat (">":file) currPath fs = do
+cat (">":args) currPath fs = do
     text <- getLine
-    let newFs = writeToFile (head file) text (lastDir currPath) [fs]
-    return (currPath, newFs)
---cat args currPath fs = return (currPath, concat args currPath fs)
+    let isFile = [] == filter (== '/') (head args)
+    let dir = findDir (head args) currPath fs
+    if isFile || dir /= FEmpty then do
+        let newFs = writeToFile (head args) text (lastDir currPath) [fs]
+        return (currPath, newFs)
+    else do
+        putStrLn $ "cat: " ++ (head args) ++ ": No such file or directory"
+        return (currPath, fs)
+-- cat args currPath fs = do
+--     let filesToRead = takeWhile (/= ">") args
+--     let fileToWrite = dropWhile (/= ">") args !! 1
+--     newFs <- readAndWrite filesToRead fileToWrite currPath fs
+--     return (currPath, newFs)
+
+
 
 -------------------------------------------------------------------------------------------
 
-rm :: [FileName] -> FilePath -> FileSystem -> IO (FilePath, FileSystem)
-rm [] currPath fs   = do
-    putStrLn "rm: missing operand"
-    return (currPath, fs)
-rm args currPath fs = return (currPath, removeFiles args $ lastDir currPath fs) -- check whether file exist
+-- rm :: [FileName] -> FilePath -> FileSystem -> IO (FilePath, FileSystem)
+-- rm [] currPath fs   = do
+--     putStrLn "rm: missing operand"
+--     return (currPath, fs)
+-- rm args currPath fs = return (currPath, removeFiles args $ lastDir currPath fs) -- check whether file exist
 
-removeFiles :: [FileName] -> FilePath -> FileSystem -> FileSystem
-removeFiles [] _ fs = fs
-removeFiles (arg:args) targetDir (Directory currDir lst)
-    | targetDir == currDir = Directory currDir $ removeFile arg lst
-    | otherwise            = Directory currDir $ removeFiles args lst
+-- removeFiles :: [FileName] -> FilePath -> FileSystem -> FileSystem
+-- removeFiles [] _ fs = fs
+-- removeFiles (arg:args) targetDir (Directory currDir lst)
+--     | targetDir == currDir = Directory currDir $ removeFile arg lst
+--     | otherwise            = Directory currDir $ removeFiles args lst
 
-removeFile :: FileName -> FileSystem -> FileSystem
-removeFile _ FEmpty = FEmpty 
-removeFile fileName f@(File name data size)
-    | fileName == name = FEmpty
-    | otherwise        = f
-removeFile fileName (Directory name lst) = Directory name $ removeFile fileName lst
+-- removeFile :: FileName -> FileSystem -> FileSystem
+-- removeFile _ FEmpty = FEmpty 
+-- removeFile fileName f@(File name data size)
+--     | fileName == name = FEmpty
+--     | otherwise        = f
+-- removeFile fileName (Directory name lst) = Directory name $ removeFile fileName lst
 
 {-
 rmdir :: [FileName] -> Either IO () IO FileSystem
