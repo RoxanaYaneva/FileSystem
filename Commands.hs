@@ -4,7 +4,6 @@ module Commands where
 import Prelude hiding (FilePath, append, putStrLn, getLine, putStr)
 import Data.Text.IO   (putStrLn, getLine, putStr)
 import Data.Text      (Text, splitOn, append)
-import qualified Data.Text as Text
 import Types
 import Utils
 
@@ -38,11 +37,12 @@ pwd currPath fs = do
     return (currPath, fs)
 
 cd :: [FilePath] -> FilePath -> FileSystem -> IO (FilePath, FileSystem)
-cd [".."] currPath fs     = return (goBack currPath, fs)
+cd [] currPath fs     = printError "cd: missing operand" currPath fs
+cd [".."] currPath fs = return (goBack currPath, fs)
 cd [arg] currPath fs
     | not $ isValid arg currPath fs = printError (append "cd: " $ append arg ": No such file or directory") currPath fs
     | otherwise                     = return (relToAbs currPath arg, fs)
-cd (arg:args) currPath fs = printError "cd: too many arguments" currPath fs
+cd _ currPath fs      = printError "cd: too many arguments" currPath fs
 
 ls :: [FilePath] -> FilePath -> FileSystem -> IO (FilePath, FileSystem)
 ls [] currPath fs = showContent currPath currPath fs

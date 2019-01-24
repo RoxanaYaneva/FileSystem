@@ -3,8 +3,6 @@ module FileSystem where
 
 import Prelude hiding (FilePath)
 import Data.Text      (Text)
-import qualified Data.Text as Text
-import System.IO
 import Types
 import Utils
 import Commands

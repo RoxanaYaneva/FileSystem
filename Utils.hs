@@ -78,8 +78,11 @@ removeFile :: [FilePath] -> [File] -> [File]
 removeFile _ [] = []
 removeFile [arg] [Directory name lst] = [Directory name lst]
 removeFile (arg:args) ((Directory name lst):fs)
-    | arg == name = [Directory name $ removeFile args lst] ++ fs
+    | arg == name = [Directory name $ safeRemove args lst] ++ fs
     | otherwise   = [Directory name lst] ++ (removeFile (arg:args) fs)
+    where safeRemove args lst 
+            | removeFile args lst == [] = [FEmpty]
+            | otherwise                 = removeFile args lst
 removeFile (arg:args) ((OFile name content size):fs)
     | arg == name && args == [] = fs
     | otherwise                 = [OFile name content size] ++ (removeFile (arg:args) fs)
