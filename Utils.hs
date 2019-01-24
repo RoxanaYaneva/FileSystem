@@ -1,10 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Utils where
 
-import Prelude hiding (FilePath, reverse, dropWhile, append, putStrLn, getLine, putStr, cons)
+import Prelude hiding (FilePath, reverse, dropWhile, append, putStrLn, getLine, putStr)
 import Data.Text.IO   (putStrLn, getLine, putStr)
 import Types
-import Data.Text      (Text, dropWhile, reverse, splitOn, append, isPrefixOf, cons)
+import Data.Text      (Text, dropWhile, reverse, splitOn, append, isPrefixOf)
 import qualified Data.Text as Text
 
 toDirList :: FilePath -> FilePath -> [FilePath]
@@ -18,7 +18,7 @@ findDir filePath currPath fs
     | otherwise                          = findDir' (toDirList filePath currPath) [root fs] 
 
 findDir' :: [FilePath] -> [File] -> File
-findDir' _ [FEmpty]      = FEmpty
+findDir' _ []            = FEmpty
 findDir' _ [OFile _ _ _] = FEmpty
 findDir' [dir] [Directory name lst]
     | dir == name = Directory name lst
@@ -108,13 +108,12 @@ readAllAndWrite infs outf currPath fs = do
     text <- readAll infs currPath [root fs]
     let rootFs = head $ createFile' (toDirList outf currPath) text [root fs]
     return $ FileSystem rootFs
-
-readAll :: [FilePath] -> FilePath -> [File] -> IO FileData
-readAll [] _ _ = return ""
-readAll (inf:infs) currPath fs = do
-    text <- readFileData (toDirList inf currPath) fs
-    all <- readAll infs currPath fs
-    return $ append text all 
+    where
+        readAll [] _ _                 = return ""
+        readAll (inf:infs) currPath fs = do
+            text <- readFileData (toDirList inf currPath) fs
+            all <- readAll infs currPath fs
+            return $ append text all 
 
 readFileData :: [FilePath] -> [File] -> IO FileData
 readFileData [arg] []    = do
@@ -165,7 +164,7 @@ printError err currPath fs = do
 relToAbs :: FilePath -> FilePath -> FilePath
 relToAbs abs ""          = abs
 relToAbs abs rel
-    | isPrefixOf "/" rel = append "/" rel
+    | isPrefixOf "/" rel = rel
     | abs == "/"         = append "/" rel
     | otherwise          = append abs $ append "/" rel  
 

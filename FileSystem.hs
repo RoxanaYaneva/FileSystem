@@ -36,5 +36,4 @@ fileSystem :: FileSystem
 fileSystem = FileSystem rootDir
 
 main :: IO ()
-main = do
-    input "/" fileSystem
+main = input "/" fileSystem

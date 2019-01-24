@@ -1,9 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Commands where
 
-import Prelude hiding (FilePath, reverse, append, filter, putStrLn, getLine, putStr, cons)
+import Prelude hiding (FilePath, append, putStrLn, getLine, putStr)
 import Data.Text.IO   (putStrLn, getLine, putStr)
-import Data.Text      (Text, reverse, splitOn, append, filter, isPrefixOf, cons)
+import Data.Text      (Text, splitOn, append)
 import qualified Data.Text as Text
 import Types
 import Utils
