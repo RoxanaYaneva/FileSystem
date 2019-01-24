@@ -1,5 +1,9 @@
+{-# LANGUAGE OverloadedStrings #-}
 module FileSystem where
 
+import Prelude hiding (FilePath)
+import Data.Text      (Text)
+import qualified Data.Text as Text
 import System.IO
 import Types
 import Utils
@@ -34,4 +38,3 @@ fileSystem = FileSystem rootDir
 main :: IO ()
 main = do
     input "/" fileSystem
-    return ()
