@@ -3,13 +3,15 @@ module Commands where
 
 import Prelude hiding (FilePath, append, putStrLn, getLine, putStr)
 import Data.Text.IO   (putStrLn, getLine, putStr)
+import System.IO      (hFlush, stdout)
 import Data.Text      (Text, splitOn, append)
 import Types
 import Utils
 
 input :: FilePath -> FileSystem -> IO ()
-input currPath fs = do 
+input currPath fs = do
     putStr "$> "
+    hFlush stdout
     cmd <- getLine
     if cmd == "" then input currPath fs
     else if cmd == ":q" then return ()
