@@ -30,6 +30,7 @@ processCommand "touch" args currPath fs = touch args currPath fs
 processCommand "mkdir" args currPath fs = mkdir args currPath fs
 processCommand "rm" args currPath fs    = rm args currPath fs
 processCommand "rmdir" args currPath fs = rmdir args currPath fs
+processCommand cmd _ currPath fs        = printError (append cmd ": command not found") currPath fs
 
 pwd :: FilePath -> FileSystem -> IO (FilePath, FileSystem)
 pwd currPath fs = do
@@ -56,7 +57,7 @@ touch args currPath fs = return (currPath, createFiles args currPath fs)
 
 mkdir :: [FilePath] -> FilePath -> FileSystem -> IO (FilePath, FileSystem)
 mkdir [] currPath fs   = printError "mkdir: missing operand" currPath fs
-mdkir args currPath fs = return (currPath, createDirs args currPath fs)
+mkdir args currPath fs = return (currPath, makeDirs args currPath fs)
 
 rm :: [FilePath] -> FilePath -> FileSystem -> IO (FilePath, FileSystem)
 rm [] currPath fs   = printError "rm: missing operand" currPath fs
