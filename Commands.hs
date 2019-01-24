@@ -1,9 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Commands where
 
-import Prelude hiding (FilePath, reverse, dropWhile, append, filter, putStrLn, getLine, putStr, cons)
+import Prelude hiding (FilePath, reverse, append, filter, putStrLn, getLine, putStr, cons)
 import Data.Text.IO   (putStrLn, getLine, putStr)
-import Data.Text      (Text, dropWhile, reverse, splitOn, append, filter, isPrefixOf, cons)
+import Data.Text      (Text, reverse, splitOn, append, filter, isPrefixOf, cons)
 import qualified Data.Text as Text
 import Types
 import Utils
@@ -68,40 +68,20 @@ rmdir [] currPath fs   = printError "rmdir: missing operand" currPath fs
 rmdir args currPath fs = return (currPath, removeDirs args currPath fs)
     
 cat :: [FilePath] -> FilePath -> FileSystem -> IO (FilePath, FileSystem)
-cat [] currPath fs    = do
+cat [] currPath fs         = do
     readFromStdin
     return (currPath, fs)
-cat [arg] currPath fs     = do  -- prpobvai s createFile + text
-    let hasPath = "" /= filter (== '/') arg
-    if hasPath then do
-        let pathToFile = goBack arg
-        let (Directory _ lst) = findDir pathToFile currPath fs
-        text <- readFileData (lastDir arg) lst
-        putStrLn text
-    else do
-        let (Directory _ lst) = findDir currPath currPath fs
-        text <- readFileData arg lst
-        putStrLn text
+cat [arg] currPath fs      = do
+    text <- readFileData (toDirList arg currPath) [root fs]
+    putStrLn text
     return (currPath, fs)
--- cat (">":args) currPath fs = do
---     let arg = head args
---     let hasPath = [] /= filter (== '/') arg
---     if hasPath then do
---         let pathToFile = goBack arg
---         let dir = findDir pathToFile currPath fs
---         if dir == FEmpty then do
---             putStrLn $ "cat: " ++ arg ++ ": No such file or directory"
---             return (currPath, fs)
---         else do
---             text <- readFromStdin
---             let newFs = writeToFile (lastDir arg) text pathToFile [fs] -- tuk neshto ne raboti
---             return (currPath, newFs)
---     else do
---         text <- readFromStdin
---         let newFs = writeToFile arg text (lastDir currPath) [fs]
---         return (currPath, newFs)       
--- cat args currPath fs = do
---     let filesToRead = takeWhile (/= ">") args
---     let fileToWrite = dropWhile (/= ">") args !! 1
---     newFs <- readAndWrite filesToRead fileToWrite currPath fs
---     return (currPath, newFs)
+cat (">":args) currPath fs = do
+    text <- getLine
+    let rootNewFs = head $ createFile' (toDirList (head args) currPath) text [root fs]
+    let newFs = FileSystem rootNewFs
+    return (currPath, newFs)    
+cat args currPath fs = do
+    let filesToRead = takeWhile (/= ">") args
+    let fileToWrite = dropWhile (/= ">") args !! 1
+    newFs <- readAllAndWrite filesToRead fileToWrite currPath fs
+    return (currPath, newFs)

@@ -102,39 +102,32 @@ removeDir (arg:args) ((Directory name lst):fs)
     | otherwise   = [Directory name lst] ++ (removeDir (arg:args) fs)
 removeDir (arg:args) (_:fs) = removeDir (arg:args) fs
 
--- readAllAndWrite :: [FilePath] -> FilePath -> FilePath -> FileSystem -> IO FileSystem
--- readAllAndWrite [] _ _ fs = return fs
--- readAllAndWrite (fp:fps) writeFile currPath fs = do
---     let dir = findDir (lastDir currPath) currPath fs
---     if dir /= FEmpty then do
---         let (Directory _ lst) = dir
---         text <- readData fp lst
---         if text == "" then do
---             ufs <- readAllAndWrite fps writeFile currPath fs
---             return ufs
---         else do
---             if isValid writeFile currPath fs then do
---                 let newFs = writeToFile writeFile text fs
---                 ufs <- readAllAndWrite fps writeFile currPath fs
---                 return ufs
---             else do
---                 putStrLn $ "cat: " ++ writeFile ++ ": No such file or directory"
---                 return fs
---     else do
---         ufs <- readAllAndWrite fps writeFile currPath fs
---         return ufs
---
--- writeToFile :: FileName -> FileData -> FilePath -> [File] -> File -- ne e pravilna, check if file exits
--- writeToFile fileName text targetDir [Directory currDir lst]
---     | targetDir == currDir = Directory currDir (lst ++ [OFile fileName text $ fileSize text])
---     | otherwise            = Directory currDir [writeToFile fileName text targetDir lst]
+readAllAndWrite :: [FilePath] -> FilePath -> FilePath -> FileSystem -> IO FileSystem
+readAllAndWrite [] _ _ fs = return fs
+readAllAndWrite infs outf currPath fs = do
+    text <- readAll infs currPath [root fs]
+    let rootFs = head $ createFile' (toDirList outf currPath) text [root fs]
+    return $ FileSystem rootFs
 
-readFileData :: FileName -> [File] -> IO FileData
-readFileData fileName []     = return $ append "cat: " $ append fileName ": No such file or directory"
-readFileData fileName ((OFile name text _):fs)
-    | fileName == name = return text
-    | otherwise        = readFileData fileName fs
-readFileData fileName (_:fs) = readFileData fileName fs
+readAll :: [FilePath] -> FilePath -> [File] -> IO FileData
+readAll [] _ _ = return ""
+readAll (inf:infs) currPath fs = do
+    text <- readFileData (toDirList inf currPath) fs
+    all <- readAll infs currPath fs
+    return $ append text all 
+
+readFileData :: [FilePath] -> [File] -> IO FileData
+readFileData [arg] []    = do
+    putStrLn $ append "cat: " $ append arg ": No such file or directory"
+    return ""
+readFileData [arg] ((OFile name text _):fs)
+    | arg == name = return text
+    | otherwise   = readFileData [arg] fs
+readFileData [arg] ((Directory _ lst):fs) = readFileData [arg] fs
+readFileData (arg:args) ((Directory name lst):fs)
+    | arg == name = readFileData args lst
+    | otherwise   = readFileData (arg:args) fs
+readFileData args (_:fs) = readFileData args fs
 
 showContent :: FilePath -> FilePath -> FileSystem -> IO (FilePath, FileSystem)
 showContent filePath currPath fs = do 
