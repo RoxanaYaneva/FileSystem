@@ -3,9 +3,9 @@ module Utils where
 
 import Prelude hiding (FilePath, reverse, dropWhile, append, putStrLn, getLine, putStr)
 import Data.Text.IO   (putStrLn, getLine, putStr)
-import Types
 import Data.Text      (Text, dropWhile, reverse, splitOn, append, isPrefixOf)
 import qualified Data.Text as Text
+import Types
 
 toDirList :: FilePath -> FilePath -> [FilePath]
 toDirList "" "/"            = ["/"]
@@ -31,9 +31,14 @@ findDir' (dir:dirs) ((Directory name lst):fs)
     | otherwise   = findDir' (dir:dirs) fs
 findDir' dirs (_:fs)    = findDir' dirs fs
 
-createFiles :: [FilePath] -> FilePath -> FileSystem -> FileSystem
-createFiles [] _ fs                = fs
-createFiles (arg:args) currPath fs = createFiles args currPath newFs
+createFiles :: [FilePath] -> FilePath -> FileSystem -> IO FileSystem
+createFiles [] _ fs = return fs
+createFiles (arg:args) currPath fs
+    | "" == Text.filter (=='/') arg          = createFiles args currPath newFs
+    | not $ isValid (goBack arg) currPath fs = do
+        putStrLn $ append "touch: " $ append (goBack arg) ": No such file or directory"
+        createFiles args currPath fs
+    | otherwise                              = createFiles args currPath newFs
     where newFs = FileSystem $ head $ createFile (toDirList arg currPath) [root fs]
 
 createFile :: [FilePath] -> [File] -> [File]
@@ -49,13 +54,18 @@ createFile' (arg:args) content ((Directory name lst):fs)
     | arg == name = [Directory name $ createFile' args content lst] ++ fs
     | otherwise   = [Directory name lst] ++ (createFile' (arg:args) content fs)
 
-makeDirs :: [FilePath] -> FilePath -> FileSystem -> FileSystem
-makeDirs [] _ fs                = fs
-makeDirs (arg:args) currPath fs = makeDirs args currPath newFs
+makeDirs :: [FilePath] -> FilePath -> FileSystem -> IO FileSystem
+makeDirs [] _ fs                = return fs
+makeDirs (arg:args) currPath fs
+    | isValid arg currPath fs                = do
+        putStrLn $ append "mkdir: cannot create directory " $ append arg ": File exists"
+        makeDirs args currPath fs
+    | otherwise                              = makeDirs args currPath newFs
     where newFs = FileSystem $ head $ makeDir (toDirList arg currPath) [root fs]
 
 makeDir :: [FilePath] -> [File] -> [File]
 makeDir _ []              = []
+makeDir [arg] [FEmpty]    = [Directory arg [FEmpty]]
 makeDir [arg] [Directory name lst]
     | arg == name = [FEmpty]
     | otherwise   = [Directory name lst] ++ [Directory arg [FEmpty]]
@@ -75,7 +85,7 @@ removeFiles (arg:args) currPath fs = removeFiles args currPath newFs
     where newFs = FileSystem $ head $ removeFile (toDirList arg currPath) [root fs]
 
 removeFile :: [FilePath] -> [File] -> [File]
-removeFile _ [] = []
+removeFile _ []                       = []
 removeFile [arg] [Directory name lst] = [Directory name lst]
 removeFile (arg:args) ((Directory name lst):fs)
     | arg == name = [Directory name $ safeRemove args lst] ++ fs
@@ -95,15 +105,18 @@ removeDirs (arg:args) currPath fs = removeDirs args currPath newFs
 removeDir :: [FilePath] -> [File] -> [File]
 removeDir _ []              = []
 removeDir [arg] [Directory name lst]
-    | arg == name = [FEmpty]
+    | arg == name = []
     | otherwise   = [Directory name lst]
 removeDir [arg] ((Directory name lst):fs)
     | arg == name = fs
     | otherwise   = [Directory name lst] ++ (removeDir [arg] fs)
 removeDir (arg:args) ((Directory name lst):fs)
-    | arg == name = [Directory name $ removeDir args lst] ++ fs
+    | arg == name = [Directory name $ safeRemoveDir args lst] ++ fs
     | otherwise   = [Directory name lst] ++ (removeDir (arg:args) fs)
-removeDir (arg:args) (_:fs) = removeDir (arg:args) fs
+    where safeRemoveDir args lst 
+            | removeDir args lst == [] = [FEmpty]
+            | otherwise                 = removeDir args lst
+removeDir (arg:args) ((OFile name c s):fs) = [OFile name c s] ++ (removeDir (arg:args) fs)
 
 readAllAndWrite :: [FilePath] -> FilePath -> FilePath -> FileSystem -> IO FileSystem
 readAllAndWrite [] _ _ fs = return fs
@@ -173,7 +186,7 @@ relToAbs abs rel
 
 goBack :: FilePath -> FilePath
 goBack "/"         = "/"
-goBack dirs 
+goBack dirs
     | dirs' == "/" = "/"
     | otherwise    = reverse $ Text.tail dirs'
     where dirs' = dropWhile (/= '/') (reverse dirs)

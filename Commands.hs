@@ -55,11 +55,15 @@ ls _ currPath fs = printError "ls: too many arguments" currPath fs
 
 touch :: [FilePath] -> FilePath -> FileSystem -> IO (FilePath, FileSystem)
 touch [] currPath fs   = printError "touch: missing file operand" currPath fs
-touch args currPath fs = return (currPath, createFiles args currPath fs)
+touch args currPath fs = do
+    newFs <- createFiles args currPath fs
+    return (currPath, newFs)
 
 mkdir :: [FilePath] -> FilePath -> FileSystem -> IO (FilePath, FileSystem)
 mkdir [] currPath fs   = printError "mkdir: missing operand" currPath fs
-mkdir args currPath fs = return (currPath, makeDirs args currPath fs)
+mkdir args currPath fs = do
+    newFs <-  makeDirs args currPath fs
+    return (currPath, newFs)
 
 rm :: [FilePath] -> FilePath -> FileSystem -> IO (FilePath, FileSystem)
 rm [] currPath fs   = printError "rm: missing operand" currPath fs
