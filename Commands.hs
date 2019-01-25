@@ -47,7 +47,8 @@ cd [arg] currPath fs
 cd _ currPath fs      = printError "cd: too many arguments" currPath fs
 
 ls :: [FilePath] -> FilePath -> FileSystem -> IO (FilePath, FileSystem)
-ls [] currPath fs = showContent currPath currPath fs
+ls [] currPath fs    = showContent currPath currPath fs
+ls ["."] currPath fs = showContent currPath currPath fs
 ls [arg] currPath fs
     | isValid arg currPath fs = showContent arg currPath fs 
     | otherwise               = printError (append "ls: cannot access " $ append arg ": No such file or directory") currPath fs

@@ -88,7 +88,7 @@ makeDir args ((OFile name c s):fs)  = [OFile name c s] ++ (makeDir args fs)
 removeFiles :: [FilePath] -> FilePath -> FileSystem -> IO FileSystem
 removeFiles [] _ fs = return fs
 removeFiles (arg:args) currPath fs
-    | True      = do  -- check if file exists
+    | False      = do  -- check if file exists
         putStrLn $ append "rm: failed to remove " $ append arg ": No such file or directory"
         removeFiles args currPath fs
     | otherwise = removeFiles args currPath newFs
@@ -147,7 +147,7 @@ readAllAndWrite infs outf currPath fs = do
 
 readFileData :: [FilePath] -> [File] -> IO FileData
 readFileData [arg] []    = do
-    putStrLn $ append "cat: " $ append arg ": No such file or directory"
+    putStr $ append "cat: " $ append arg ": No such file or directory"
     return ""
 readFileData [arg] ((OFile name text _):fs)
     | arg == name = return text
