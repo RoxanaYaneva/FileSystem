@@ -62,16 +62,20 @@ touch args currPath fs = do
 mkdir :: [FilePath] -> FilePath -> FileSystem -> IO (FilePath, FileSystem)
 mkdir [] currPath fs   = printError "mkdir: missing operand" currPath fs
 mkdir args currPath fs = do
-    newFs <-  makeDirs args currPath fs
+    newFs <- makeDirs args currPath fs
     return (currPath, newFs)
 
 rm :: [FilePath] -> FilePath -> FileSystem -> IO (FilePath, FileSystem)
 rm [] currPath fs   = printError "rm: missing operand" currPath fs
-rm args currPath fs = return (currPath, removeFiles args currPath fs)
+rm args currPath fs = do
+    newFs <- removeFiles args currPath fs
+    return (currPath, newFs)
 
 rmdir :: [FilePath] -> FilePath -> FileSystem -> IO (FilePath, FileSystem)
 rmdir [] currPath fs   = printError "rmdir: missing operand" currPath fs
-rmdir args currPath fs = return (currPath, removeDirs args currPath fs)
+rmdir args currPath fs = do
+    newFs <- removeDirs args currPath fs
+    return (currPath, newFs)
     
 cat :: [FilePath] -> FilePath -> FileSystem -> IO (FilePath, FileSystem)
 cat [] currPath fs         = do
