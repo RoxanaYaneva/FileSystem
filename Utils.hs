@@ -159,9 +159,12 @@ readFileData (arg:args) ((Directory name lst):fs)
 readFileData args (_:fs) = readFileData args fs
 
 showContent :: FilePath -> FilePath -> FileSystem -> IO (FilePath, FileSystem)
-showContent filePath currPath fs = do 
-    let (Directory _ lst) = findDir filePath currPath fs
-    showContent' lst
+showContent filePath currPath fs = do
+    let dir = findDir filePath currPath fs
+    if dir == FEmpty then putStrLn $ "ls: cannot open directory '.': Permission denied"
+    else do
+        let (Directory _ lst) = findDir filePath currPath fs
+        showContent' lst
     return (currPath, fs)
 
 showContent' :: [File] -> IO ()

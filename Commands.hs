@@ -39,7 +39,9 @@ pwd currPath fs = do
     return (currPath, fs)
 
 cd :: [FilePath] -> FilePath -> FileSystem -> IO (FilePath, FileSystem)
-cd [] currPath fs     = printError "cd: missing operand" currPath fs
+cd [] currPath fs     = return ("/", fs)
+cd ["/"] _ fs         = return ("/", fs)
+cd ["."] currPath fs  = return (currPath, fs)
 cd [".."] currPath fs = return (goBack currPath, fs)
 cd [arg] currPath fs
     | not $ isValid arg currPath fs = printError (append "cd: " $ append arg ": No such file or directory") currPath fs
@@ -50,8 +52,8 @@ ls :: [FilePath] -> FilePath -> FileSystem -> IO (FilePath, FileSystem)
 ls [] currPath fs    = showContent currPath currPath fs
 ls ["."] currPath fs = showContent currPath currPath fs
 ls [arg] currPath fs
-    | isValid arg currPath fs = showContent arg currPath fs 
-    | otherwise               = printError (append "ls: cannot access " $ append arg ": No such file or directory") currPath fs
+    | isValid arg currPath fs  = showContent arg currPath fs 
+    | otherwise                = printError (append "ls: cannot access " $ append arg ": No such directory") currPath fs
 ls _ currPath fs = printError "ls: too many arguments" currPath fs
 
 touch :: [FilePath] -> FilePath -> FileSystem -> IO (FilePath, FileSystem)
