@@ -11,30 +11,33 @@ toDirList :: FilePath -> FilePath -> [FilePath]
 toDirList "" "/"            = ["/"]
 toDirList filePath currPath = ["/"] ++ (tail $ splitOn "/" $ relToAbs currPath filePath)
 
-findDir :: FilePath -> FilePath -> FileSystem -> File
+findDir :: FilePath -> FilePath -> FileSystem -> Maybe File
 findDir "" currPath fs = findDir' (toDirList "" currPath) [root fs]
 findDir filePath currPath fs
     | currPath == "/" && filePath == "/" = findDir' ["/"] [root fs]
     | otherwise                          = findDir' (toDirList filePath currPath) [root fs] 
 
-findDir' :: [FilePath] -> [File] -> File
-findDir' _ []            = FEmpty
-findDir' _ [OFile _ _ _] = FEmpty
-findDir' [dir] [Directory name lst]
-    | dir == name = Directory name lst
-    | otherwise   = FEmpty
-findDir' [dir] ((Directory name lst):fs)
-    | dir == name = Directory name lst
-    | otherwise   = findDir' [dir] fs
-findDir' (dir:dirs) ((Directory name lst):fs)
-    | dir == name = findDir' dirs lst
-    | otherwise   = findDir' (dir:dirs) fs
+findDir' :: [FilePath] -> [File] -> Maybe File
+findDir' _ []            = Nothing
+findDir' _ [OFile _ _ _] = Nothing
+findDir' [dirName] [dir@(Directory name _)]
+    | dirName == name = Just dir
+    | otherwise       = Nothing
+findDir' [dirName] (dir@(Directory name _):fs)
+    | dirName == name = Just dir
+    | otherwise       = findDir' [dirName] fs
+findDir' (dirName:dirs) ((Directory name lst):fs)
+    | dirName == name = findDir' dirs lst
+    | otherwise       = findDir' (dirName:dirs) fs
 findDir' dirs (_:fs)    = findDir' dirs fs
 
 createFiles :: [FilePath] -> FilePath -> FileSystem -> IO FileSystem
 createFiles [] _ fs = return fs
 createFiles (arg:args) currPath fs
-    | "" == Text.filter (=='/') arg          = createFiles args currPath newFs
+    | "" == Text.filter (=='/') arg          = if isValid arg currPath fs then do 
+                                                putStrLn $ append "touch: " $ append arg ": There is such file or directory"
+                                                createFiles args currPath fs
+                                               else createFiles args currPath newFs
     | not $ isValid (goBack arg) currPath fs = do
         putStrLn $ append "touch: " $ append (goBack arg) ": No such file or directory"
         createFiles args currPath fs
@@ -45,17 +48,16 @@ createFile :: [FilePath] -> [File] -> [File]
 createFile args fs = createFile' args "" fs
 
 createFile' :: [FilePath] -> FileData -> [File] -> [File]
-createFile' _ _ []                                   = []
-createFile' [arg] content [FEmpty]                   = [OFile arg content $ fileSize content]
-createFile' [arg] content [Directory name lst]       = [Directory name lst] ++ [OFile arg content $ fileSize content]
-createFile' [arg] content ((Directory name lst):fs)  = [Directory name lst] ++ (createFile' [arg] content fs)
-createFile' [arg] content [OFile name c s]
+createFile' [arg] content []                         = [OFile arg content $ fileSize content]
+createFile' [arg] content [dir@(Directory _ _)]      = dir : [OFile arg content $ fileSize content]
+createFile' [arg] content (dir@(Directory _ _):fs)   = dir : (createFile' [arg] content fs)
+createFile' [arg] content [file@(OFile name _ _)]
     | arg == name = [OFile arg content $ fileSize content]
-    | otherwise   = [OFile name c s] ++ [OFile arg content $ fileSize content]
-createFile' [arg] content ((OFile name c s):fs)
+    | otherwise   = file : [OFile arg content $ fileSize content]
+createFile' [arg] content (file@(OFile name _ _):fs)
     | arg == name = [OFile name content $ fileSize content] ++ fs
-    | otherwise   = [OFile name c s] ++ (createFile' [arg] content fs)
-createFile' (arg:args) content ((OFile name c s):fs) = [OFile name c s] ++ (createFile' (arg:args) content fs)
+    | otherwise   = file : (createFile' [arg] content fs)
+createFile' (arg:args) content (file@(OFile name _ _):fs) = file : (createFile' (arg:args) content fs)
 createFile' (arg:args) content ((Directory name lst):fs)
     | arg == name = [Directory name $ createFile' args content lst] ++ fs
     | otherwise   = [Directory name lst] ++ (createFile' (arg:args) content fs)
@@ -70,20 +72,19 @@ makeDirs (arg:args) currPath fs
     where newFs = FileSystem $ head $ makeDir (toDirList arg currPath) [root fs]
 
 makeDir :: [FilePath] -> [File] -> [File]
-makeDir _ []                        = []
-makeDir [arg] [FEmpty]              = [Directory arg [FEmpty]]
-makeDir [arg] [Directory name lst]
-    | arg == name = [FEmpty]
-    | otherwise   = [Directory name lst] ++ [Directory arg [FEmpty]]
-makeDir [arg] ((Directory name lst):fs)
-    | arg == name = [Directory name lst] ++ fs
-    | otherwise   = [Directory name lst] ++ (makeDir [arg] fs)
-makeDir [arg] [OFile name c s]      = [OFile name c s] ++ [Directory arg [FEmpty]]
+makeDir [arg] []              = [Directory arg []]
+makeDir [arg] [dir@(Directory name _)]
+    | arg == name = []
+    | otherwise   = dir : [Directory arg []]
+makeDir [arg] (dir@(Directory name _):fs)
+    | arg == name = dir : fs
+    | otherwise   = dir : (makeDir [arg] fs)
+makeDir [arg] [file@(OFile _ _ _)]      = file : [Directory arg []]
 makeDir [arg] ((OFile name c s):fs) = [OFile name c s] ++ (makeDir [arg] fs)
-makeDir (arg:args) ((Directory name lst):fs)
+makeDir (arg:args) (dir@(Directory name lst):fs)
     | arg == name = [Directory name $ makeDir args lst] ++ fs
-    | otherwise   = [Directory name $ lst] ++ (makeDir (arg:args) fs)
-makeDir args ((OFile name c s):fs)  = [OFile name c s] ++ (makeDir args fs)
+    | otherwise   = dir : (makeDir (arg:args) fs)
+makeDir args (file@(OFile _ _ _):fs)  = file : (makeDir args fs)
 
 removeFiles :: [FilePath] -> FilePath -> FileSystem -> IO FileSystem
 removeFiles [] _ fs = return fs
@@ -96,16 +97,13 @@ removeFiles (arg:args) currPath fs
 
 removeFile :: [FilePath] -> [File] -> [File]
 removeFile _ []                       = []
-removeFile [arg] [Directory name lst] = [Directory name lst]
-removeFile (arg:args) ((Directory name lst):fs)
-    | arg == name = [Directory name $ safeRemove args lst] ++ fs
-    | otherwise   = [Directory name lst] ++ (removeFile (arg:args) fs)
-    where safeRemove args lst 
-            | removeFile args lst == [] = [FEmpty]
-            | otherwise                 = removeFile args lst
-removeFile (arg:args) ((OFile name content size):fs)
+removeFile [arg] [dir@(Directory _ _)] = [dir]
+removeFile (arg:args) (dir@(Directory name lst):fs)
+    | arg == name = [Directory name $ removeFile args lst] ++ fs
+    | otherwise   = dir : (removeFile (arg:args) fs)
+removeFile (arg:args) (file@(OFile name _ _):fs)
     | arg == name && args == [] = fs
-    | otherwise                 = [OFile name content size] ++ (removeFile (arg:args) fs)
+    | otherwise                 = file : (removeFile (arg:args) fs)
 
 removeDirs :: [FilePath] -> FilePath -> FileSystem -> IO FileSystem
 removeDirs [] _ fs = return fs
@@ -118,19 +116,16 @@ removeDirs (arg:args) currPath fs
 
 removeDir :: [FilePath] -> [File] -> [File]
 removeDir _ []                        = []
-removeDir [arg] [Directory name lst]
+removeDir [arg] [dir@(Directory name _)]
     | arg == name = []
-    | otherwise   = [Directory name lst]
-removeDir [arg] ((Directory name lst):fs)
+    | otherwise   = [dir]
+removeDir [arg] (dir@(Directory name _):fs)
     | arg == name = fs
-    | otherwise   = [Directory name lst] ++ (removeDir [arg] fs)
-removeDir (arg:args) ((Directory name lst):fs)
-    | arg == name = [Directory name $ safeRemoveDir args lst] ++ fs
-    | otherwise   = [Directory name lst] ++ (removeDir (arg:args) fs)
-    where safeRemoveDir args lst 
-            | removeDir args lst == [] = [FEmpty]
-            | otherwise                = removeDir args lst
-removeDir (arg:args) ((OFile name c s):fs) = [OFile name c s] ++ (removeDir (arg:args) fs)
+    | otherwise   = dir : (removeDir [arg] fs)
+removeDir (arg:args) (dir@(Directory name lst):fs)
+    | arg == name = [Directory name $ removeDir args lst] ++ fs
+    | otherwise   = dir : (removeDir (arg:args) fs)
+removeDir (arg:args) (file@(OFile _ _ _):fs) = file : (removeDir (arg:args) fs)
 
 readAllAndWrite :: [FilePath] -> FilePath -> FilePath -> FileSystem -> IO FileSystem
 readAllAndWrite [] _ _ fs = return fs
@@ -160,15 +155,15 @@ readFileData args (_:fs) = readFileData args fs
 
 showContent :: FilePath -> FilePath -> FileSystem -> IO (FilePath, FileSystem)
 showContent filePath currPath fs = do
-    let dir = findDir filePath currPath fs
-    if dir == FEmpty then putStrLn $ "ls: cannot open directory '.': Permission denied"
-    else do
-        let (Directory _ lst) = findDir filePath currPath fs
-        showContent' lst
+    case findDir filePath currPath fs of
+        Just dir -> do
+            let (Directory _ lst) = dir
+            showContent' lst
+        Nothing  -> putStrLn $ "ls: cannot open directory '.': Permission denied"
     return (currPath, fs)
 
 showContent' :: [File] -> IO ()
-showContent' [FEmpty]                 = return ()
+showContent' []                       = return ()
 showContent' [Directory name _]       = putStrLn $ append name "/"
 showContent' [OFile name _ size]      = putStrLn name
 showContent' ((OFile name _ size):fs) = do
@@ -187,7 +182,7 @@ readFromStdin = do
         readFromStdin
 
 isValid :: FilePath -> FilePath -> FileSystem -> Bool
-isValid filePath currPath fs = FEmpty /= findDir filePath currPath fs
+isValid filePath currPath fs = Nothing /= findDir filePath currPath fs
 
 printError :: Text -> FilePath -> FileSystem -> IO (FilePath, FileSystem)
 printError err currPath fs = do

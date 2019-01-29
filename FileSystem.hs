@@ -16,13 +16,13 @@ rootDir = Directory "/"
                 Directory "folder1" 
                     [
                         OFile "file3" content $ fileSize content, 
-                        Directory "folder4" [FEmpty]
+                        Directory "folder4" []
                     ],
                 Directory "folder2" 
                     [
                         Directory "folder3" 
                             [
-                                Directory "folder5" [FEmpty]
+                                Directory "folder5" []
                             ],
                         OFile "file4" content $ fileSize content
                     ],
@@ -32,6 +32,3 @@ rootDir = Directory "/"
 
 fileSystem :: FileSystem
 fileSystem = FileSystem rootDir
-
-main :: IO ()
-main = input "/" fileSystem
